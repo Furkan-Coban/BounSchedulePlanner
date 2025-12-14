@@ -1,4 +1,4 @@
-package com.furkan.scheduler.parser;
+package com.furkan.scheduler.ingest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -8,8 +8,6 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-
-import javax.print.Doc;
 
 public class BounSchedulerParser {
     public List<CourseOfferingDto> parseDepartmentSchedule(String html){
