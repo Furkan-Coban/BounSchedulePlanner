@@ -6,7 +6,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
-@Repository
+
 public interface TermRepository extends JpaRepository<Term,Long> {
 
     Optional<Term> findByCode(String code);
