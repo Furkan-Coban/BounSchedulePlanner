@@ -29,6 +29,10 @@ public class CourseOffering {
     private String courseCodeSec;
     @Column(nullable = false)
     private String courseName;
+    @Column(nullable = false)
+    private int credits;
+    @Column(nullable = false)
+    private int ects;
 
     private String instructor;   // nullable
 }

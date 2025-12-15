@@ -26,4 +26,5 @@ public class Meeting {
     @Column(nullable = false)
     private LocalTime endTime;
     private String room;
+    private String type;
 }

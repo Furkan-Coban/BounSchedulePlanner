@@ -8,7 +8,9 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.stereotype.Component;
 
+@Component
 public class BounSchedulerParser {
     public List<CourseOfferingDto> parseDepartmentSchedule(String html){
         Document doc = Jsoup.parse(html);
@@ -281,7 +283,7 @@ public class BounSchedulerParser {
         try {
             String s = normalize(raw).replace(" ", "");
             if (s.isEmpty()) return null;
-            return Integer.valueOf(Integer.parseInt(s));
+            return Integer.parseInt(s);
         } catch (Exception e) {
             return null;
         }

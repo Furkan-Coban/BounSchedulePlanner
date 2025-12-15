@@ -21,7 +21,7 @@ public interface CourseOfferingRepository
             String termCode,
             String query
     );
-
+    List<CourseOffering> findByTerm_CodeOrderByCourseCodeSecAsc(String termCode);
     // Search by course name
     List<CourseOffering> findTop200ByTerm_CodeAndCourseNameContainingIgnoreCaseOrderByCourseCodeSecAsc(
             String termCode,
