@@ -25,4 +25,5 @@ public class SyncController {
     ) {
         return syncService.syncDepartment(term, dept, deptName);
     }
+    
 }

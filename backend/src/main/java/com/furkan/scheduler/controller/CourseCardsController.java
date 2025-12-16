@@ -100,6 +100,58 @@ public class CourseCardsController {
 
         return out;
     }
+    @GetMapping("/courses/cards/all")
+    public List<CourseCardDto> allCards(@RequestParam String term) {
+
+    List<CourseOffering> offerings =
+            offeringRepo.findByTerm_CodeOrderByCourseCodeSecAsc(term);
+
+    List<Long> ids = offerings.stream().map(CourseOffering::getId).toList();
+    List<Meeting> meetings =
+            ids.isEmpty() ? List.of() : meetingRepo.findByOffering_IdIn(ids);
+
+    Map<Long, List<Meeting>> byOfferingId = meetings.stream()
+            .collect(Collectors.groupingBy(m -> m.getOffering().getId()));
+
+    List<CourseCardDto> out = new ArrayList<>(offerings.size());
+
+    for (CourseOffering o : offerings) {
+        List<Meeting> ms = byOfferingId.getOrDefault(o.getId(), List.of());
+
+        ms = ms.stream()
+                .sorted(Comparator
+                        .comparing((Meeting m) -> dayOrder(m.getDay()))
+                        .thenComparing(Meeting::getStartTime))
+                .toList();
+
+        String daysText = ms.stream().map(Meeting::getDay).collect(Collectors.joining(""));
+        String hoursText = ms.stream()
+                .map(m -> slotMapper.toSlot(m.getStartTime()))
+                .filter(s -> s > 0)
+                .map(String::valueOf)
+                .collect(Collectors.joining(""));
+        String roomsText = ms.stream()
+                .map(Meeting::getRoom)
+                .filter(r -> r != null && !r.isBlank())
+                .distinct()
+                .collect(Collectors.joining(" | "));
+
+        out.add(new CourseCardDto(
+                o.getId(),
+                o.getDepartment().getCode(),
+                o.getCourseCodeSec(),
+                o.getCourseName(),
+                o.getInstructor(),
+                o.getCredits(),
+                o.getEcts(),
+                daysText,
+                hoursText,
+                roomsText
+        ));
+    }
+
+    return out;
+}
 
     private static int dayOrder(String d) {
         // M T W Th F (you store "Th" as two chars)

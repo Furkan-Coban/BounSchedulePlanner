@@ -70,8 +70,9 @@ public class BounSchedulerParser {
             if (hasCodeSec && hasDesc && hasName && hasDays && hasHours && hasRooms) {
                 return t;
             }
+            System.out.println(hasCodeSec + " " + hasDesc + " " + hasName + " " + hasDays + " " + hasHours + " " + hasRooms);
         }
-
+       
         throw new IllegalStateException("Schedule table not found: could not locate header row (Code.Sec/Desc/Name/Days/Hours/Rooms).");
     }
     private static boolean isHeaderRow(Element tr) {
