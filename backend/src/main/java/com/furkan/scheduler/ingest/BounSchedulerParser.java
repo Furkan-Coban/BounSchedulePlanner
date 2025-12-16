@@ -1,7 +1,9 @@
 package com.furkan.scheduler.ingest;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+
 import com.furkan.scheduler.dto.CourseOfferingDto;
 import com.furkan.scheduler.dto.MeetingDto;
 import org.jsoup.Jsoup;
@@ -11,18 +13,26 @@ import org.jsoup.select.Elements;
 import org.springframework.stereotype.Component;
 
 @Component
-public class BounSchedulerParser {
-    public List<CourseOfferingDto> parseDepartmentSchedule(String html){
+public final class BounSchedulerParser {
+
+    public List<CourseOfferingDto> parseDepartmentSchedule(String html) {
         Document doc = Jsoup.parse(html);
         Element table = findScheduleTable(doc);
+
         List<CourseOfferingDto> out = new ArrayList<>();
         CourseBuilder current = null;
+
+        String semester = extractSemester(doc);
+
+        // New curriculum starts at 2025/2026-1 and later.
+        // quotaSet = 1 means columns from Instructor onward are shifted by +1.
+        int quotaSet = isNewCurriculum(semester) ? 1 : 0;
 
         for (Element tr : table.select("tr")) {
             if (isHeaderRow(tr)) continue;
             if (!isDataRow(tr)) continue;
 
-            RowCells row = RowCells.from(tr);
+            RowCells row = RowCells.from(tr, quotaSet);
 
             if (row.isMainOfferingRow()) {
                 if (current != null) out.add(current.build());
@@ -36,93 +46,119 @@ public class BounSchedulerParser {
         return out;
     }
 
+    private static boolean isNewCurriculum(String semester) {
+        // semester example: "2025/2026-1"
+        if (semester == null) return false;
+        String s = normalize(semester);
+        if (s.length() < 4) return false;
+
+        int startYear;
+        try {
+            startYear = Integer.parseInt(s.substring(0, 4));
+        } catch (Exception e) {
+            return false;
+        }
+        return startYear >= 2025;
+    }
+
+    private static String extractSemester(Document doc) {
+        // Works with blocks like:
+        // <td class="bodytextdark">Semester :</td><td class="bodytextdark">2025/2026-1</td>
+        for (Element td : doc.select("td.bodytextdark, td")) {
+            String t = normalize(td.text()).toLowerCase(Locale.ROOT);
+            if (t.startsWith("semester")) {
+                Element next = td.nextElementSibling();
+                if (next != null) {
+                    String val = normalize(next.text());
+                    return val.isEmpty() ? null : val;
+                }
+            }
+        }
+        return null;
+    }
+
+    // -------------------- table finding / row classification --------------------
 
     private static Element findScheduleTable(Document doc) {
-        // The schedule page may contain multiple tables.
-        // We identify the correct one by the header row that has the expected column titles.
         Elements tables = doc.select("table");
 
         for (Element t : tables) {
             Element headerRow = t.select("tr.schtitle").first();
             if (headerRow == null) continue;
 
-            // Collect normalized header cell texts
             Elements ths = headerRow.select("td");
             boolean hasCodeSec = false;
-            boolean hasDesc = false;
             boolean hasName = false;
-            boolean hasDays = false;
-            boolean hasHours = false;
-            boolean hasRooms = false;
 
             for (Element td : ths) {
-                String h = normalize(td.text()).toLowerCase();
-                // Examples in your HTML: "Code.Sec", "Desc.", "Name", "Days", "Hours", "Rooms"
+                String h = normalize(td.text()).toLowerCase(Locale.ROOT);
                 if (h.contains("code") && h.contains("sec")) hasCodeSec = true;
-                if (h.startsWith("desc")) hasDesc = true;
                 if (h.equals("name")) hasName = true;
-                if (h.equals("days")) hasDays = true;
-                if (h.equals("hours")) hasHours = true;
-                if (h.equals("rooms")) hasRooms = true;
             }
 
-            // If the row looks like the schedule header, this is our table
-            if (hasCodeSec && hasDesc && hasName && hasDays && hasHours && hasRooms) {
+            if (hasCodeSec && hasName) {
                 return t;
             }
-            System.out.println(hasCodeSec + " " + hasDesc + " " + hasName + " " + hasDays + " " + hasHours + " " + hasRooms);
         }
-       
-        throw new IllegalStateException("Schedule table not found: could not locate header row (Code.Sec/Desc/Name/Days/Hours/Rooms).");
+
+        throw new IllegalStateException(
+                "Schedule table not found: could not locate header row (Code.Sec/Name)."
+        );
     }
+
     private static boolean isHeaderRow(Element tr) {
         return tr.hasClass("schtitle");
     }
 
     private static boolean isDataRow(Element tr) {
-        // these are your data rows: schtd, schtd2, sometimes with labps
         return tr.hasClass("schtd") || tr.hasClass("schtd2") || tr.hasClass("labps");
     }
+
+    // -------------------- internal row model --------------------
 
     private enum MeetingType { LEC, PS, LAB }
 
     private static final class RowCells {
         final List<String> tds;
+        final int quotaSet;
 
-        private RowCells(List<String> tds) { this.tds = tds; }
+        private RowCells(List<String> tds, int quotaSet) {
+            this.tds = tds;
+            this.quotaSet = quotaSet;
+        }
 
-        static RowCells from(Element tr) {
+        static RowCells from(Element tr, int quotaSet) {
             Elements cells = tr.select("> td");
             List<String> out = new ArrayList<>(cells.size());
             for (Element td : cells) {
-                // Using text() is fine because Rooms contains spans with text we want.
                 out.add(normalize(td.text()));
             }
-            // Ensure we can safely index up to 14 (your table has 15 columns)
+            // Ensure we can safely index up to 14 (your table has 15 columns in the "new" layout)
             while (out.size() < 15) out.add("");
-            return new RowCells(out);
+            return new RowCells(out, quotaSet);
         }
 
         String codeSec()        { return tds.get(0); }
         String name()           { return tds.get(2); }
         String creditsRaw()     { return tds.get(3); }
         String ectsRaw()        { return tds.get(4); }
-        String instructor()     { return tds.get(6); }
-        String daysRaw()        { return tds.get(7); }
-        String hoursRaw()       { return tds.get(8); }
-        String deliveryRaw()    { return tds.get(9); }
-        String roomsRaw()       { return tds.get(10); }
-        String examRaw()        { return tds.get(11); }
-        String slRaw()          { return tds.get(12); }
-        String requiredRaw()    { return tds.get(13); }
-        String departmentsRaw() { return tds.get(14); }
+
+        // shifted columns (some terms slide by one)
+        String instructor()     { return tds.get(5 + quotaSet); }
+        String daysRaw()        { return tds.get(6 + quotaSet); }
+        String hoursRaw()       { return tds.get(7 + quotaSet); }
+        String deliveryRaw()    { return tds.get(8 + quotaSet); }
+        String roomsRaw()       { return tds.get(9 + quotaSet); }
+        String examRaw()        { return tds.get(10 + quotaSet); }
+        String slRaw()          { return tds.get(11 + quotaSet); }
+        String requiredRaw()    { return tds.get(12 + quotaSet); }
+        String departmentsRaw() { return tds.get(13 + quotaSet); }
 
         boolean isMainOfferingRow() {
             return !codeSec().isBlank();
         }
 
         boolean isContinuationRow() {
-            // In your HTML continuation rows have blank Code.Sec and name "P.S." or "LAB"
             return codeSec().isBlank() && !name().isBlank();
         }
 
@@ -134,6 +170,7 @@ public class BounSchedulerParser {
         }
     }
 
+    // -------------------- offering state machine --------------------
 
     private static final class CourseBuilder {
         String codeSec, courseCode, section, name;
@@ -207,15 +244,12 @@ public class BounSchedulerParser {
             List<String> out = new ArrayList<>();
             if (s.isEmpty()) return out;
 
-            // Greedy scan: "Th" is two chars, others are single
             for (int i = 0; i < s.length();) {
                 if (i + 1 < s.length() && s.startsWith("Th", i)) {
                     out.add("Th");
                     i += 2;
                 } else {
-                    char c = s.charAt(i);
-                    // expected: M, T, W, F (and maybe others)
-                    out.add(String.valueOf(c));
+                    out.add(String.valueOf(s.charAt(i)));
                     i += 1;
                 }
             }
@@ -243,14 +277,12 @@ public class BounSchedulerParser {
             List<String> out = new ArrayList<>();
             if (s.isEmpty()) return out;
 
-            // In td.text() pipes may appear as "|" (from those red separators), so split on '|'
             String[] parts = s.split("\\|");
             for (String p : parts) {
                 String room = normalize(p);
                 if (!room.isEmpty()) out.add(room);
             }
 
-            // If there was no '|' but still valid room text, keep as single
             if (out.isEmpty() && !s.isEmpty()) out.add(s);
             return out;
         }
@@ -259,13 +291,11 @@ public class BounSchedulerParser {
     // -------------------- small utilities --------------------
 
     private static String parseCourseCode(String codeSec) {
-        // "CHEM101.01" -> "CHEM101"
         int dot = codeSec.indexOf('.');
         return dot >= 0 ? codeSec.substring(0, dot) : codeSec;
     }
 
     private static String parseSection(String codeSec) {
-        // "CHEM101.01" -> "01"
         int dot = codeSec.indexOf('.');
         return dot >= 0 && dot + 1 < codeSec.length() ? codeSec.substring(dot + 1) : "";
     }
@@ -284,7 +314,7 @@ public class BounSchedulerParser {
         try {
             String s = normalize(raw).replace(" ", "");
             if (s.isEmpty()) return null;
-            return Integer.parseInt(s);
+            return Integer.valueOf(Integer.parseInt(s));
         } catch (Exception e) {
             return null;
         }
@@ -297,13 +327,8 @@ public class BounSchedulerParser {
 
     private static String normalize(String s) {
         if (s == null) return "";
-        return s
-                .replace('\u00A0', ' ')   // convert &nbsp; to normal space
-                .replaceAll("\\s+", " ")  // collapse multiple spaces/newlines
+        return s.replace('\u00A0', ' ')
+                .replaceAll("\\s+", " ")
                 .trim();
     }
-
-
-
-
 }

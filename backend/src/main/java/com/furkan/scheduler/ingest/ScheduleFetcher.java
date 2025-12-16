@@ -34,7 +34,7 @@ public class ScheduleFetcher {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)
-                .timeout(Duration.ofSeconds(12))
+                .timeout(Duration.ofSeconds(20))
                 .header("User-Agent", "Mozilla/5.0") // helps with some servers
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                 .GET()
@@ -50,7 +50,6 @@ public class ScheduleFetcher {
                 String bodyPreview = safePreview(decodeBestEffort(response), 400);
                 throw new ScheduleFetchException("HTTP " + status + " from schedule page. Body: " + bodyPreview);
             }
-
             return decode(response);
 
         } catch (Exception e) {
@@ -58,13 +57,14 @@ public class ScheduleFetcher {
         }
     }
     private URI buildUri(String term, String deptShort, String deptLong) {
-        String q = "donem=" + enc(term) + "&kisaadi=" + enc(deptShort);
-
-        if (deptLong != null && !deptLong.isBlank()) {
-            q += "&bolum=" + enc(deptLong);
-        }
-
-    return URI.create(BASE_URL + "?" + q);
+        String safeTerm = term.trim();
+        String safeDeptShort = deptShort.trim();
+        String safeDeptLong = deptLong.trim();
+        safeDeptLong = safeDeptLong.replaceAll("[\\\"\\\']", "");
+        String q = "donem=" + enc(safeTerm) +
+                "&kisaadi=" + enc(safeDeptShort) +
+                "&bolum=" + enc(safeDeptLong);
+        return URI.create(BASE_URL + "?" + q);
     }
 
     private String enc(String s) {
