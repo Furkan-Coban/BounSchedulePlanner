@@ -58,11 +58,13 @@ public class ScheduleFetcher {
         }
     }
     private URI buildUri(String term, String deptShort, String deptLong) {
-        String q =
-                "donem=" + enc(term) +
-                        "&kisaadi=" + enc(deptShort) +
-                        "&bolum=" + enc(deptLong);
-        return URI.create(BASE_URL + "?" + q);
+        String q = "donem=" + enc(term) + "&kisaadi=" + enc(deptShort);
+
+        if (deptLong != null && !deptLong.isBlank()) {
+            q += "&bolum=" + enc(deptLong);
+        }
+
+    return URI.create(BASE_URL + "?" + q);
     }
 
     private String enc(String s) {
