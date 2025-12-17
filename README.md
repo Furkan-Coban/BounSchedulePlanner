@@ -202,15 +202,8 @@ HTML schedule pages can change over time. The ingestion layer is designed to be 
 
 ## Future improvements (optional)
 
-- Real-time conflict explanation (which courses conflict and why)
 - Persist selected schedules to user profiles
 - Export schedules (ICS/Calendar)
-- Smarter slot handling (multi-slot meetings, variable durations)
-
 ---
 
-## Author
 
-**Furkan** — full-stack implementation (ingestion, backend API, and UI schedule builder).
-
-If you’re reviewing this for a job application: I’m happy to walk through parsing strategy, data modeling decisions, and API/UI trade-offs in an interview.
